@@ -1,0 +1,10 @@
+begin;
+alter table public.questions add column technology text, add column country text, add column code text;
+alter table public.projects add column skills text;
+alter table public.group_posts add column guide bigint references public.guides on delete set null;
+alter table public.group_posts add constraint group_post_group_unique unique (id, group_id);
+alter table public.group_posts add column parent bigint;
+alter table public.group_posts add foreign key (parent, group_id) references public.group_posts(id, group_id) on delete cascade;
+grant insert (guide,parent) on public.group_posts to authenticated;
+notify pgrst, 'reload schema';
+commit;
