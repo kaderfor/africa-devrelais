@@ -26,7 +26,7 @@ export default function Workspace({ db, profile, people, screen }) {
   const [kind, setKind] = useState('');
   const [busy, setBusy] = useState(false);
   const tables = {
-    opportunites: ['opportunities'], groupes: ['groups', 'group_posts', 'guides', ...(profile ? ['group_members', 'group_invitations'] : [])],
+    opportunites: ['opportunities'], groupes: ['groups', 'group_posts', ...(profile ? ['group_members', 'group_invitations'] : [])],
     messages: profile ? ['conversations', ...(active ? ['private_messages'] : [])] : [], profil: ['member_details']
   }[screen];
 
@@ -60,9 +60,10 @@ export default function Workspace({ db, profile, people, screen }) {
       const { error } = await (typeof request === 'function' ? request() : request);
       if (error) throw error;
       form?.reset();
-      if (success) setConfirmation(success);
+      if (form?.hasAttribute('data-collapse-on-success')) form.closest('details')?.removeAttribute('open');
+      if (success && screen !== 'messages') setConfirmation(success);
       await load();
-      if (!success) setNotice('Enregistré.');
+      if (!success || screen === 'messages') setNotice(success || 'Enregistré.');
     } catch (error) {
       setNotice(error.code === '23505' ? 'Cette entrée existe déjà.' : error.message);
     } finally {
@@ -97,7 +98,7 @@ export default function Workspace({ db, profile, people, screen }) {
     {screen === 'opportunites' && <>
       <label>Type d’opportunité<select value={kind} onChange={event => setKind(event.target.value)}><option value="">Toutes</option>{kinds.map(item => <option key={item}>{item}</option>)}</select></label>
       {profile && rows.opportunities && <details><summary>Publier une opportunité</summary>
-        <form onSubmit={event => submit(event, values => insertWithAttachment(db, 'opportunities', { author: profile.id, title: values.get('title').trim(), kind: values.get('kind'), body: values.get('body').trim() }, values.get('image'), 'opportunity-images', 'image_path'), true, 'Opportunité publiée avec succès.')}>
+        <form data-collapse-on-success onSubmit={event => submit(event, values => insertWithAttachment(db, 'opportunities', { author: profile.id, title: values.get('title').trim(), kind: values.get('kind'), body: values.get('body').trim() }, values.get('image'), 'opportunity-images', 'image_path'), true, 'Opportunité publiée avec succès.')}>
           <label>Type<select name="kind">{kinds.map(item => <option key={item}>{item}</option>)}</select></label>
           <label>Titre<input name="title" required maxLength={150} /></label>
           <label>Description, lieu et modalités de candidature<textarea name="body" required maxLength={5000} /></label>
@@ -110,8 +111,8 @@ export default function Workspace({ db, profile, people, screen }) {
     </>}
 
     {screen === 'groupes' && <>
-      {profile && rows.groups && <details><summary>Créer un projet de groupe</summary><form onSubmit={event => submit(event, values => db.from('groups').insert({ title: values.get('title').trim(), body: values.get('body').trim(), owner: profile.id, ...(values.get('github').trim() ? { github: values.get('github').trim() } : {}) }))}>
-        <label>Nom<input name="title" required maxLength={150} /></label><label>Sujet et description<textarea name="body" required maxLength={2000} /></label><label>Dépôt GitHub (facultatif)<input name="github" type="url" placeholder="https://github.com/equipe/projet" /></label><button disabled={busy}>Créer le projet de groupe</button>
+      {profile && rows.groups && <details><summary>Créer un projet de groupe</summary><form data-collapse-on-success onSubmit={event => submit(event, values => db.from('groups').insert({ title: values.get('title').trim(), body: values.get('body').trim(), owner: profile.id, is_public: values.get('visibility') === 'public', ...(values.get('github').trim() ? { github: values.get('github').trim() } : {}) }), true, 'Groupe créé avec succès.')}>
+        <label>Nom<input name="title" required maxLength={150} /></label><label>Sujet et description<textarea name="body" required maxLength={2000} /></label><label>Dépôt GitHub (facultatif)<input name="github" type="url" placeholder="https://github.com/equipe/projet" /></label><label>Visibilité<select name="visibility"><option value="private">Privé · sur invitation</option><option value="public">Public · adhésion libre</option></select></label><button disabled={busy}>Créer le projet de groupe</button>
       </form></details>}
       {rows.group_invitations?.some(invite => invite.recipient === profile?.id) && <section className="group-invitations">
         <h3>Mes invitations</h3>
@@ -126,7 +127,7 @@ export default function Workspace({ db, profile, people, screen }) {
       {rows.groups?.length === 0 && <p>Aucun groupe pour le moment.</p>}
       <div className="group-directory" aria-label="Liste des groupes">
         {rows.groups?.map(group => <button className="problem" type="button" key={group.id} aria-pressed={selectedGroup === group.id} onClick={() => setSelectedGroup(group.id)}>
-          <strong>{group.title}</strong><small>{group.owner === profile?.id ? 'Ton groupe' : rows.group_members?.some(row => row.group_id === group.id && row.member === profile?.id) ? 'Membre' : 'Groupe public'}</small>
+          <strong>{group.title}</strong><small>{group.owner === profile?.id ? 'Ton groupe' : rows.group_members?.some(row => row.group_id === group.id && row.member === profile?.id) ? 'Membre' : group.is_public ? 'Groupe public' : 'Groupe privé'}</small>
         </button>)}
       </div>
       {rows.groups?.filter(group => group.id === selectedGroup).map(group => {
@@ -149,7 +150,7 @@ export default function Workspace({ db, profile, people, screen }) {
             </form>
           </details>}
 
-          {profile && !owner && <button disabled={busy} onClick={() => save(joined
+          {profile && !owner && (joined || group.is_public) && <button disabled={busy} onClick={() => save(joined
             ? db.from('group_members').delete().eq('group_id', group.id).eq('member', profile.id)
             : db.from('group_members').insert({ group_id: group.id, member: profile.id }))}>{joined ? 'Quitter' : 'Rejoindre'}</button>}
           {owner && rows.group_invitations && <details><summary>Invitations et membres</summary>
@@ -162,16 +163,20 @@ export default function Workspace({ db, profile, people, screen }) {
               if (window.confirm('Retirer ce membre du groupe ?')) save(db.from('group_members').delete().eq('group_id', group.id).eq('member', row.member));
             }}>Retirer du groupe</button></div>)}
           </details>}
-          {(owner || joined) && <form onSubmit={event => submit(event, values => db.from('group_posts').insert({ group_id: group.id, author: profile.id, body: values.get('body').trim(), guide: values.get('guide') || null }))}>
-            <label>Publier dans le groupe<textarea name="body" required maxLength={2000} /></label><label>Guide partagé<select name="guide"><option value="">Aucun</option>{rows.guides?.map(guide => <option value={guide.id} key={guide.id}>{guide.title}</option>)}</select></label><button disabled={busy}>Publier</button>
-          </form>}
+          {(owner || joined) && <details><summary>Publier dans le groupe</summary><form data-collapse-on-success onSubmit={event => submit(event, values => insertWithAttachment(db, 'group_posts', { group_id: group.id, author: profile.id, body: values.get('body').trim() }, values.get('pdf'), 'group-pdfs', 'pdf_path', group.id + '/' + profile.id), true, 'Publication ajoutée au groupe.')}>
+            <label>Publier dans le groupe<textarea name="body" required maxLength={2000} /></label><label>Guide PDF du groupe (facultatif)<input name="pdf" type="file" accept="application/pdf,.pdf" /><small>10 Mo maximum · visible par les membres du groupe</small></label><button disabled={busy}>Publier</button>
+          </form></details>}
           {rows.group_posts.filter(post => post.group_id === group.id && !post.parent).map(post => <div className="answer" key={post.id}><strong><a href={'/communaute?membre=' + post.author}>{people[post.author]?.name ?? 'Voir le profil'}</a></strong><p className="body-text">{post.body}</p>
-            {post.guide && <a href={'/ressources#guide-' + post.guide}>Voir le guide partagé</a>}
+            {post.pdf_path && <button type="button" className="link" onClick={async () => {
+              const { data, error } = await db.storage.from('group-pdfs').createSignedUrl(post.pdf_path, 60, { download: 'guide-du-groupe.pdf' });
+              if (error) setNotice(error.message);
+              else window.location.assign(data.signedUrl);
+            }}>Télécharger le guide PDF</button>}
             {rows.group_posts.filter(reply => reply.parent === post.id).map(reply => <div className="group-reply" key={reply.id}>
               <strong><a href={'/communaute?membre=' + reply.author}>{people[reply.author]?.name ?? 'Voir le profil'}</a></strong><p className="body-text">{reply.body}</p>
               {(owner || profile?.id === reply.author) && <button disabled={busy} onClick={() => save(db.from('group_posts').delete().eq('id', reply.id))}>Retirer la réponse</button>}
             </div>)}
-            {(joined || owner) && <details><summary>Répondre</summary><form onSubmit={event => submit(event, values => db.from('group_posts').insert({ group_id: group.id, parent: post.id, author: profile.id, body: values.get('body').trim() }))}><label>Réponse<textarea name="body" required maxLength={2000} /></label><button disabled={busy}>Envoyer</button></form></details>}
+            {(joined || owner) && <details><summary>Répondre</summary><form data-collapse-on-success onSubmit={event => submit(event, values => db.from('group_posts').insert({ group_id: group.id, parent: post.id, author: profile.id, body: values.get('body').trim() }))}><label>Réponse<textarea name="body" required maxLength={2000} /></label><button disabled={busy}>Envoyer</button></form></details>}
             {(owner || profile?.id === post.author) && <button disabled={busy} onClick={() => save(db.from('group_posts').delete().eq('id', post.id))}>Retirer la publication</button>}
           </div>)}
         </article>;
@@ -180,7 +185,7 @@ export default function Workspace({ db, profile, people, screen }) {
 
     {screen === 'messages' && profile && rows.conversations && <>
       <button disabled={busy} onClick={() => load().catch(error => setNotice(error.message))}>Actualiser</button>
-      <details open={new URLSearchParams(window.location.search).has('membre') || undefined}><summary>Nouvelle discussion</summary><form onSubmit={event => submit(event, values => db.from('conversations').insert({ sender: profile.id, recipient: values.get('recipient') }))}>
+      <details open={new URLSearchParams(window.location.search).has('membre') || undefined}><summary>Nouvelle discussion</summary><form data-collapse-on-success onSubmit={event => submit(event, values => db.from('conversations').insert({ sender: profile.id, recipient: values.get('recipient') }), true, 'Demande en attente.')}>
         <label>Destinataire<select required name="recipient" defaultValue={new URLSearchParams(window.location.search).get('membre') ?? ''}><option value="">Choisir un membre</option>{Object.values(people).filter(person => person.id !== profile.id).map(person => <option key={person.id} value={person.id}>{person.name}{person.username && person.username.length < 36 ? ' (@' + person.username + ')' : ''}</option>)}</select></label>
         <button disabled={busy}>Demander à discuter</button>
       </form></details>

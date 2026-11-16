@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
-export default function Dashboard({ db, profile, data, screen }) {
+export default function Dashboard({ db, profile, data, screen, onCount }) {
+  const showDashboard = ['notifications', 'tableau-de-bord'].includes(screen);
   const [board, setBoard] = useState(null);
   const [notice, setNotice] = useState('');
 
@@ -10,11 +11,12 @@ export default function Dashboard({ db, profile, data, screen }) {
       db.from('notification_reads').select('event_key').eq('owner', id),
       db.from('group_invitations').select().eq('recipient', id),
       db.from('conversations').select().eq('recipient', id).eq('state', 'pending'),
-      db.from('project_tasks').select().eq('assignee', id).eq('done', false),
+      screen === 'tableau-de-bord' ? db.from('project_tasks').select().eq('assignee', id).eq('done', false) : { data: [] },
       db.from('applications').select('project,author,accepted'),
       db.from('projects').select('id,title').eq('author', id),
       db.from('groups').select('id,title'),
-      db.from('group_versions').select('id,group_id,author,note').order('id', { ascending: false }).limit(20)
+      screen === 'tableau-de-bord' ? db.from('group_versions').select('id,group_id,author,note').order('id', { ascending: false }).limit(20) : { data: [] },
+      db.from('answers').select('id,question,author,questions!inner(author,title)').eq('questions.author', id).neq('author', id)
     ]);
     const failure = results.find(result => result.error);
     if (failure) throw failure.error;
@@ -25,28 +27,33 @@ export default function Dashboard({ db, profile, data, screen }) {
     if (!profile) return;
     setBoard(null);
     load().catch(error => setNotice(error.code === 'PGRST205' ? 'Applique la migration 013 pour activer cet espace.' : error.message));
-  }, [db, profile?.id]);
+    const timer = setInterval(() => { if (!document.hidden) load().catch(() => {}); }, 15000);
+    return () => clearInterval(timer);
+  }, [db, profile?.id, screen]);
 
-  if (!profile) return <section className="space page-panel"><a href="/compte">Complète ton profil pour accéder à cet espace.</a></section>;
-  const [reads, invites, requests, tasks, applications, projects, groups, versions] = board ?? [[],[],[],[],[],[],[],[]];
-  const questionTitles = new Map(data.questions.filter(q => q.author === profile.id).map(q => [q.id,q.title]));
+  const [reads, invites, requests, tasks, applications, projects, groups, versions, answers] = board ?? [[],[],[],[],[],[],[],[],[]];
   const names = new Map(data.profiles.map(p => [p.id,p.name]));
   const projectTitles = new Map(projects.map(p => [p.id,p.title]));
   const groupTitles = new Map(groups.map(g => [g.id,g.title]));
   const events = [
     ...invites.map(row => ['invite:' + row.group_id, 'Invitation · ' + groupTitles.get(row.group_id), '/groupes']),
     ...requests.map(row => ['conversation:' + row.id, names.get(row.sender) + ' souhaite discuter', '/messages']),
-    ...data.answers.filter(row => questionTitles.has(row.question) && row.author !== profile.id).map(row => ['answer:' + row.id, 'Nouvelle réponse · ' + questionTitles.get(row.question), '/entraide?question=' + row.question]),
+    ...answers.map(row => ['answer:' + row.id, 'Nouvelle réponse · ' + row.questions.title, '/entraide?question=' + row.question]),
     ...applications.filter(row => !row.accepted && projectTitles.has(row.project)).map(row => ['application:' + row.project + ':' + row.author, 'Candidature · ' + projectTitles.get(row.project), '/projets#projet-' + row.project])
   ];
   const seen = new Set(reads.map(row => row.event_key));
   const unread = events.filter(([key]) => !seen.has(key));
+
+  useEffect(() => { onCount(unread.length); }, [onCount, unread.length]);
 
   async function markRead(key) {
     const { error } = await db.from('notification_reads').upsert({ owner: profile.id, event_key: key }, { ignoreDuplicates: true });
     if (error) { setNotice(error.message); return; }
     setBoard(previous => [[...previous[0], { event_key: key }], ...previous.slice(1)]);
   }
+
+  if (!showDashboard) return null;
+  if (!profile) return <section className="space page-panel"><a href="/compte">Complète ton profil pour accéder à cet espace.</a></section>;
 
   return <section className="space page-panel"><h1>{screen === 'notifications' ? 'Notifications' : 'Mon tableau de bord'}</h1>
     <p role="status">{notice}</p>

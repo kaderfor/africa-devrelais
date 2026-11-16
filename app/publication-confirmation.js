@@ -9,7 +9,7 @@ export default function PublicationConfirmation({ message, onClose }) {
   }, [message]);
 
   return <dialog ref={dialog} className="publication-confirmation" aria-labelledby="publication-title" aria-describedby="publication-message" onClose={onClose}>
-    <h2 id="publication-title">Publication confirmée</h2>
+    <h2 id="publication-title">Action confirmée</h2>
     <p id="publication-message">{message}</p>
     <form method="dialog"><button autoFocus>OK</button></form>
   </dialog>;

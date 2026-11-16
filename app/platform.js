@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { insertWithAttachment } from './attachments';
 import AccountPresentation from './account-presentation';
+import PublicationConfirmation from './publication-confirmation';
 import Dashboard from './dashboard';
 import Workspace from './workspace';
 import Social from './social';
@@ -17,6 +18,8 @@ function chosenUsername(profile) {
 
 export default function Platform({ screen = 'accueil' }) {
   const db = useMemo(() => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY), []);
+  const [publicationNotice, setPublicationNotice] = useState('');
+  const [unread, setUnread] = useState(0);
   const [sessionReady, setSessionReady] = useState(false);
   const [user, setUser] = useState(null);
   const [data, setData] = useState({ profiles: [], questions: [], answers: [], solutions: [], leaderboard: [] });
@@ -137,13 +140,17 @@ export default function Platform({ screen = 'accueil' }) {
     finally { setBusy(false); }
   }
 
-  function submit(event, action, report) {
+  function submit(event, action, report, success) {
     event.preventDefault();
     const form = event.currentTarget;
     const fields = new FormData(form);
     run(async () => {
       await action(fields);
       form.reset();
+      if (success) {
+        form.closest('details')?.removeAttribute('open');
+        setPublicationNotice(success);
+      }
     }, report);
   }
 
@@ -162,6 +169,10 @@ export default function Platform({ screen = 'accueil' }) {
     await refresh();
   }
 
+  const bell = <a className="notification-bell" href="/notifications" aria-label={unread ? 'Notifications, ' + unread + ' non lues' : 'Notifications'}>
+    <span aria-hidden="true">🔔</span>{unread > 0 && <span className="notification-count" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
+  </a>;
+
   return <>
     <header className={visitor ? 'site-header landing-header' : 'site-header'}>
       <a className="brand" href="/"><span className="brand-mark" aria-hidden="true">↗</span>Africa <strong>DevRelais</strong></a>
@@ -169,12 +180,13 @@ export default function Platform({ screen = 'accueil' }) {
         <a href="/">Accueil</a><a href="/#espaces">Découvrir la plateforme</a>
       </nav>}
       {visitor && <a className="button landing-account" href="/compte">{profile ? 'Mon compte' : 'Rejoindre'} ↗</a>}
-      {!visitor && <nav className="desktop-navigation" aria-label="Navigation principale"><a href="/">Accueil</a><a href="/entraide">Entraide</a><a href="/ressources">Ressources</a><a href="/projets">Projets</a><a href="/opportunites">Opportunités</a><a href="/groupes">Projets de groupe</a><a href="/messages">Messages</a><a href="/notifications" aria-label="Notifications">🔔</a><a href="/communaute">Communauté</a><a href="/classement">Classement</a><a className="account-link" href="/compte">{profile ? profile.name : 'Mon compte'}</a></nav>}
-      <details className="mobile-navigation">
-        <summary>Menu <span aria-hidden="true">☰</span></summary>
-        <nav aria-label="Navigation mobile">{visitor ? <><a href="/">Accueil</a><a href="/#espaces">Découvrir la plateforme</a><a href="/compte">Connexion et inscription</a></> : <><a href="/">Accueil</a><a href="/entraide">Entraide</a><a href="/ressources">Ressources</a><a href="/projets">Projets</a><a href="/opportunites">Opportunités</a><a href="/groupes">Projets de groupe</a><a href="/messages">Messages</a><a href="/notifications" aria-label="Notifications">🔔</a><a href="/communaute">Communauté</a><a href="/classement">Classement</a><a className="account-link" href="/compte">{profile ? profile.name : 'Mon compte'}</a></>}</nav>
-      </details>
+      {!visitor && <nav className="desktop-navigation" aria-label="Navigation principale"><a href="/">Accueil</a><a href="/entraide">Entraide</a><a href="/ressources">Ressources</a><a href="/projets">Projets</a><a href="/opportunites">Opportunités</a><a href="/groupes">Projets de groupe</a><a href="/messages">Messages</a>{bell}<a href="/communaute">Communauté</a><a href="/publications">Publications</a><a href="/classement">Classement</a><a className="account-link" href="/compte">{profile ? profile.name : 'Mon compte'}</a></nav>}
+      <div className="mobile-controls">{!visitor && bell}<details className="mobile-navigation">
+        <summary aria-label="Menu"><span aria-hidden="true">☰</span></summary>
+        <nav aria-label="Navigation mobile">{visitor ? <><a href="/">Accueil</a><a href="/#espaces">Découvrir la plateforme</a><a href="/compte">Connexion et inscription</a></> : <><a href="/">Accueil</a><a href="/entraide">Entraide</a><a href="/ressources">Ressources</a><a href="/projets">Projets</a><a href="/opportunites">Opportunités</a><a href="/groupes">Projets de groupe</a><a href="/messages">Messages</a><a href="/communaute">Communauté</a><a href="/publications">Publications</a><a href="/classement">Classement</a><a className="account-link" href="/compte">{profile ? profile.name : 'Mon compte'}</a></>}</nav>
+      </details></div>
     </header>
+    <PublicationConfirmation message={publicationNotice} onClose={() => setPublicationNotice('')} />
     <main className={screen === 'accueil' ? 'landing' : undefined}>
       {screen === 'accueil' && <><section className="hero">
         <div className="hero-copy">
@@ -204,7 +216,7 @@ export default function Platform({ screen = 'accueil' }) {
             <i aria-hidden="true">{icon}</i><strong>{label}</strong><span>{description}</span>{!visitor && <b>{action} →</b>}
           </a>)}
         </div>
-        {!visitor && <nav className="landing-more" aria-label="Autres espaces"><a href="/tableau-de-bord">Mon tableau de bord</a><a href="/opportunites">Opportunités</a><a href="/groupes">Projets de groupe</a><a href="/messages">Messages</a><a href="/notifications" aria-label="Notifications">🔔</a><a href="/compte">Mon compte</a></nav>}
+        {!visitor && <nav className="landing-more" aria-label="Autres espaces"><a href="/tableau-de-bord">Mon tableau de bord</a><a href="/opportunites">Opportunités</a><a href="/groupes">Projets de groupe</a><a href="/messages">Messages</a><a href="/compte">Mon compte</a></nav>}
       </section>
       {!visitor && data.questions.length > 0 && <section className="space home-recent">
         <h2>Questions récentes</h2>
@@ -230,7 +242,7 @@ export default function Platform({ screen = 'accueil' }) {
               <button type="button" key={key} aria-pressed={filter === key} onClick={() => { setFilter(key); select(null); }}>{label}</button>
             )}
           </div>
-          {profile && <form id="publier" onSubmit={event => submit(event, fields => write(insertWithAttachment(db, 'questions', { author: user.id, title: fields.get('title'), body: fields.get('body'), technology: fields.get('technology').trim() || null, country: fields.get('country') || null, code: fields.get('code').trim() || null }, fields.get('image'), 'question-images', 'image_path')))}>
+          {profile && <details id="publier"><summary>Poser une question</summary><form onSubmit={event => submit(event, fields => write(insertWithAttachment(db, 'questions', { author: user.id, title: fields.get('title'), body: fields.get('body'), technology: fields.get('technology').trim() || null, country: fields.get('country') || null, code: fields.get('code').trim() || null }, fields.get('image'), 'question-images', 'image_path')), setNotice, 'Question publiée avec succès.')}>
             <h3>Publier un problème</h3>
             <label>Titre<input name="title" required minLength={5} maxLength={150} /></label>
             <label>Contexte et essais<textarea name="body" required minLength={10} maxLength={5000} /></label>
@@ -238,7 +250,7 @@ export default function Platform({ screen = 'accueil' }) {
             <label>Pays concerné<select name="country"><option value="">Aucun pays précis</option>{countries.map(([code,name]) => <option key={code} value={code}>{name}</option>)}</select></label>
             <label>Extrait de code<textarea name="code" maxLength={5000} spellCheck={false} /></label>
             <label>Image publique (facultatif)<input name="image" type="file" accept="image/jpeg,image/png,image/webp" /><small>JPEG, PNG ou WebP · 5 Mo maximum</small></label><button disabled={busy}>Publier</button>
-          </form>}
+          </form></details>}
           {ready && !questions.length && <p className="empty">{filter === 'all' && !query ? 'Aucune question publiée pour le moment.' : 'Aucune question avec ce filtre.'}</p>}
           {questions.map(q => <div className="problem" id={'question-' + q.id} key={q.id}>
             <button className="link question-title" aria-pressed={selected === q.id} onClick={() => select(q.id)}>{q.title}</button>
@@ -253,9 +265,9 @@ export default function Platform({ screen = 'accueil' }) {
               <strong><a href={'/communaute?membre=' + a.author}>{people[a.author]?.name ?? 'Voir le profil'}</a></strong><p className="body-text">{a.body}</p>
               {solution?.answer === a.id ? <><span className="accepted">Solution acceptée</span>{profile && <a className="guide-link" href={'/ressources?question=' + problem.id}>Créer un guide</a>}</> : user?.id === problem.author && a.author !== user.id && <button disabled={busy} onClick={() => run(() => write(db.rpc('accept_solution', { problem_id: problem.id, response_id: a.id })))}>Accepter la solution</button>}
             </div>)}
-            {profile && <form onSubmit={event => submit(event, fields => write(db.from('answers').insert({ question: problem.id, author: user.id, body: fields.get('body') })))}>
+            {profile && <details><summary>Répondre</summary><form onSubmit={event => submit(event, fields => write(db.from('answers').insert({ question: problem.id, author: user.id, body: fields.get('body') })), setNotice, 'Réponse publiée avec succès.')}>
               <label>Ta réponse<textarea name="body" required minLength={5} maxLength={5000} /></label><button disabled={busy}>Répondre</button>
-            </form>}
+            </form></details>}
           </article>}
         </section>}
           {screen === 'classement' && <section id="classement"><h2>Les devs qui font avancer l’Afrique</h2><p>Le classement des contributeurs, selon les solutions que la communauté a acceptées.</p><div className="filters">
@@ -339,7 +351,7 @@ export default function Platform({ screen = 'accueil' }) {
                   return;
                 }
                 if (error) throw error;
-                accountMessage(signup ? 'Si cette adresse peut être inscrite, tu recevras un lien de confirmation. Si tu l’as déjà utilisée ici, clique sur « J’ai déjà un compte » pour te connecter.' : 'Connexion réussie.');
+                accountMessage(signup ? 'Vérifie ta boîte mail pour confirmer ton inscription. Si tu ne vois pas le message, ouvre le dossier Spam ou Courrier indésirable. Marque le message comme « Non spam », puis clique sur le lien de confirmation.' : 'Connexion réussie.');
               }, accountMessage)}>
                 <label>E-mail<input name="email" type="email" value={accountEmail} onChange={event => setAccountEmail(event.target.value)} required autoComplete="email" /></label>
                 <label>Mot de passe<input name="password" type="password" minLength={signup ? 8 : undefined} required autoComplete={signup ? 'new-password' : 'current-password'} /></label>
@@ -351,8 +363,8 @@ export default function Platform({ screen = 'accueil' }) {
           </section>}
       </div>
       {(screen === 'ressources' || screen === 'projets') && <Spaces db={db} profile={profile} people={people} draft={draft} screen={screen} />}
-      {['notifications','tableau-de-bord'].includes(screen) && <Dashboard db={db} profile={profile} data={data} screen={screen} />}
-      {screen === 'communaute' && <Social db={db} profile={profile} data={data} refresh={refresh} />}
+      {user && <Dashboard key={user.id} db={db} profile={profile} data={data} screen={screen} onCount={setUnread} />}
+      {['communaute','publications'].includes(screen) && <Social db={db} profile={profile} data={data} refresh={refresh} screen={screen} />}
       {['profil', 'messages', 'groupes', 'opportunites'].includes(screen) && <Workspace db={db} profile={profile} people={people} screen={screen} />}
       </>}
     </main>

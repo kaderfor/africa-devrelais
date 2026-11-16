@@ -57,6 +57,7 @@ export default function GroupVersions({ db, group, member, people }) {
         throw result.error;
       }
       form.reset();
+      form.closest('details')?.removeAttribute('open');
       await load();
       setNotice('Version déposée.');
     } catch (error) {

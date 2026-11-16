@@ -41,6 +41,7 @@ export default function Spaces({ db, profile, people, draft, screen }) {
       const { error } = await (typeof request === 'function' ? request() : request);
       if (error) throw error;
       form?.reset();
+      if (form?.hasAttribute('data-collapse-on-success')) form.closest('details')?.removeAttribute('open');
       if (success) setConfirmation(success);
       await load();
     } catch (error) {
@@ -82,7 +83,7 @@ export default function Spaces({ db, profile, people, draft, screen }) {
       <h2>{title}</h2><p>{description}</p>{table === 'projects' && <label>Filtrer par compétence<input type="search" value={skill} onChange={event => setSkill(event.target.value)} /></label>}
       {!loading && profile && <details open={table === 'guides' && draft ? true : undefined}>
         <summary>{table === 'guides' ? 'Publier un guide' : 'Publier un projet'}</summary>
-        <form key={table === 'guides' ? draft?.id : table} onSubmit={event => publish(event, table)}>
+        <form data-collapse-on-success key={table === 'guides' ? draft?.id : table} onSubmit={event => publish(event, table)}>
           {table === 'guides' && draft && <p>Solution de {people[draft.author]?.name || 'la communauté'}.</p>}
           <label>Titre<input name="title" required minLength={3} maxLength={150} defaultValue={table === 'guides' ? draft?.title : undefined} /></label>
           <label>{table === 'guides' ? 'Guide' : 'Description et compétences recherchées'}<textarea name="body" required minLength={5} maxLength={10000} defaultValue={table === 'guides' ? draft?.body : undefined} /></label>

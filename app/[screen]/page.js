@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import Platform from '../platform';
 
-const screens = ['entraide', 'ressources', 'projets', 'classement', 'compte', 'parametres', 'communaute', 'profil', 'messages', 'groupes', 'opportunites', 'tableau-de-bord', 'notifications'];
+const screens = ['entraide', 'ressources', 'projets', 'classement', 'compte', 'parametres', 'communaute', 'profil', 'messages', 'groupes', 'opportunites', 'tableau-de-bord', 'notifications', 'publications'];
 
 export default async function Screen({ params }) {
   const { screen } = await params;

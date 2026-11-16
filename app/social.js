@@ -1,6 +1,7 @@
 'use client';
 
 import { ProfileAvatar } from './account-presentation';
+import PostInteractions from './post-interactions';
 import MemberImage from './member-image';
 import PublicationConfirmation from './publication-confirmation';
 import { insertWithAttachment } from './attachments';
@@ -15,13 +16,16 @@ function searchable(value) {
   return (value ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 }
 
-export default function Social({ db, profile, data, refresh }) {
+export default function Social({ db, profile, data, refresh, screen }) {
   const [creditedGuides, setCreditedGuides] = useState([]);
   const [details, setDetails] = useState(null);
   const [directory, setDirectory] = useState(null);
   const [search, setSearch] = useState('');
   const [country, setCountry] = useState('');
   const [skill, setSkill] = useState('');
+  const publications = screen === 'publications';
+  const [composing, setComposing] = useState(false);
+  const [conversation, setConversation] = useState(null);
   const [member, setMember] = useState(null);
   const [feed, setFeed] = useState(false);
   const [items, setItems] = useState(null);
@@ -65,7 +69,10 @@ export default function Social({ db, profile, data, refresh }) {
       const { error } = await (typeof request === 'function' ? request() : request);
       if (error) throw error;
       form?.reset();
-      if (success) setConfirmation(success);
+      if (success) {
+        setComposing(false);
+        setConfirmation(success);
+      }
       await Promise.all([load(), refresh()]);
     } catch (error) {
       setNotice(error.message);
@@ -91,7 +98,7 @@ export default function Social({ db, profile, data, refresh }) {
   }, [db, person?.id]);
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).has('membre')) return;
+    if (publications || new URLSearchParams(window.location.search).has('membre')) return;
     const request = new AbortController();
     async function loadDirectory() {
       const profiles = [];
@@ -118,14 +125,39 @@ export default function Social({ db, profile, data, refresh }) {
     (!country || person.country === country) && searchable(person.skills).includes(skillQuery)
   );
 
+  useEffect(() => {
+    if (!profile || !person || profile.id === person.id) return;
+    let current = true;
+    db.from('conversations').select('state,sender,recipient')
+      .or('and(sender.eq.' + profile.id + ',recipient.eq.' + person.id + '),and(sender.eq.' + person.id + ',recipient.eq.' + profile.id + ')')
+      .maybeSingle().then(({ data }) => { if (current) setConversation(data); });
+    return () => { current = false; };
+  }, [db, profile?.id, person?.id]);
+
+  async function requestConversation() {
+    setBusy(true);
+    setNotice('');
+    try {
+      const { data: request, error } = await db.from('conversations')
+        .insert({ sender: profile.id, recipient: person.id }).select('state,sender,recipient').single();
+      if (error) throw error;
+      setConversation(request);
+    } catch (error) {
+      setNotice(error.code === '23505' ? 'Une discussion existe déjà. Ouvre Messages pour la consulter.' : error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const following = new Set((items?.follows ?? []).map(row => row.followed));
+  const visibleMembers = members.filter(person => !feed || following.has(person.id));
   const visible = row => (!member || row.author === member) && (!feed || following.has(row.author));
   const author = id => data.profiles.find(p => p.id === id)?.name;
 
 
   return <div className="page-panel community-page">
     <section className="space">
-      {!person && <h2>Communauté</h2>}
+      {!person && <h2>{publications ? 'Publications' : 'Communauté'}</h2>}
       <PublicationConfirmation message={confirmation} onClose={() => setConfirmation('')} /><p role="status">{notice}</p>
       {person ? <>
         <div className="member-banner">
@@ -146,7 +178,10 @@ export default function Social({ db, profile, data, refresh }) {
           <label>Compétences publiques<input name="skills" maxLength={250} defaultValue={person.skills ?? ''} /></label>
           <button disabled={busy}>Enregistrer le profil</button>
         </form><a href="/profil">Modifier mon parcours</a></details>}
-        {profile && profile.id !== person.id && <p><a href={'/messages?membre=' + person.id}>Demander à discuter</a></p>}
+        {profile && profile.id !== person.id && <p>{conversation?.state === 'pending' && conversation.sender === profile.id ? <button type="button" disabled>Demande en attente</button> :
+          conversation?.state === 'blocked' ? 'Discussion bloquée' :
+          conversation?.state === 'refused' ? 'Demande refusée' :
+          conversation ? <a href={'/messages?membre=' + person.id}>{conversation.state === 'accepted' ? 'Ouvrir la discussion' : 'Voir la demande reçue'}</a> : <button type="button" disabled={busy} onClick={requestConversation}>Demander à discuter</button>}</p>}
         {details?.owner === person.id && <dl className="member-details">
           {[['education','Niveau d’études'],['school','Établissement'],['languages','Langues'],['status','Situation'],['interests','Opportunités recherchées'],['linkedin','LinkedIn'],['github','GitHub'],['portfolio','Portfolio']].map(([key,label]) =>
             details[key] && <div key={key}><dt>{label}</dt><dd>{details[key]}</dd></div>)}
@@ -162,18 +197,19 @@ export default function Social({ db, profile, data, refresh }) {
         </>}
         <a href="/communaute">Tous les membres</a>
       </> : <>
-        <div className="directory-filters">
+        {!publications && <><div className="directory-filters">
           <label>Nom ou @identifiant<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Ex. Junior ou @junior226" /></label>
           <label>Pays<select value={country} onChange={event => setCountry(event.target.value)}><option value="">Tous les pays</option>{countries.map(([code,name]) => <option key={code} value={code}>{name}</option>)}</select></label>
           <label>Compétence<input type="search" value={skill} onChange={event => setSkill(event.target.value)} placeholder="Ex. JavaScript" /></label>
         </div>
-        <p role="status">{directory ? members.length ? members.length + ' profil(s)' : 'Aucun profil ne correspond à ta recherche.' : 'Chargement de l’annuaire…'}</p>
-        <ul className="member-list">{members.map(p => <li key={p.id}><a href={'/communaute?membre=' + p.id}><ProfileAvatar db={db} member={p} /><span className="member-card-text"><strong title={p.name}>{p.name}</strong><small>{p.username && p.username !== 'dev_' + p.id.replaceAll('-', '') && <>@{p.username} · </>}{countryName(p.country)}</small><small className="member-card-skills">{splitSkills(p.skills).slice(0, 2).join(' · ')}</small></span></a></li>)}</ul>
+        <p role="status">{directory ? visibleMembers.length ? visibleMembers.length + ' profil(s)' : 'Aucun profil ne correspond à ta recherche.' : 'Chargement de l’annuaire…'}</p>
+        <ul className="member-list">{visibleMembers.map(p => <li key={p.id}><a href={'/communaute?membre=' + p.id}><ProfileAvatar db={db} member={p} /><span className="member-card-text"><strong title={p.name}>{p.name}</strong><small>{p.username && p.username !== 'dev_' + p.id.replaceAll('-', '') && <>@{p.username} · </>}{countryName(p.country)}</small><small className="member-card-skills">{splitSkills(p.skills).slice(0, 2).join(' · ')}</small></span></a></li>)}</ul></>}
         {profile && <div className="filters">
           <button aria-pressed={!feed} onClick={() => setFeed(false)}>Tout</button>
           <button aria-pressed={feed} onClick={() => setFeed(true)}>Abonnements</button>
         </div>}
-        {profile && items && <form onSubmit={event => {
+        {publications && profile && <button type="button" aria-expanded={composing} onClick={() => setComposing(!composing)}>{composing ? 'Fermer le formulaire' : '+ Créer une publication'}</button>}
+        {publications && composing && profile && items && <form onSubmit={event => {
           event.preventDefault();
           const form = event.currentTarget;
           const fields = new FormData(form);
@@ -183,10 +219,10 @@ export default function Social({ db, profile, data, refresh }) {
           <label>Image facultative<input name="image" type="file" accept="image/jpeg,image/png,image/webp" /><small>JPEG, PNG ou WebP · 5 Mo maximum</small></label><button disabled={busy}>Publier</button>
         </form>}
       </>}
-      {items?.posts.filter(visible).map(post => <article key={post.id}>
-        <a href={'/communaute?membre=' + post.author}>{author(post.author)}</a><p className="body-text">{post.body}</p>{post.image_path && <MemberImage key={post.image_path} db={db} bucket="post-images" path={post.image_path} alt="Image jointe à la publication" />}
+      {(publications || person) && items?.posts.filter(visible).map(post => <article key={post.id}>
+        <a href={'/communaute?membre=' + post.author}>{author(post.author)}</a><p className="body-text">{post.body}</p>{post.image_path && <MemberImage key={post.image_path} db={db} bucket="post-images" path={post.image_path} alt="Image jointe à la publication" />}<PostInteractions db={db} post={post.id} profile={profile} author={author} />
       </article>)}
-      {(feed || person) && items?.projects.filter(visible).map(project => <article key={project.id}>
+      {(person || (publications && feed)) && items?.projects.filter(visible).map(project => <article key={project.id}>
         <a href={'/projets#projet-' + project.id}>{project.title}</a><p>Appel à contribution · {author(project.author)}</p>
       </article>)}
     </section>
