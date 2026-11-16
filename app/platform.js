@@ -25,6 +25,7 @@ export default function Platform({ screen = 'accueil' }) {
   const [username, setUsername] = useState('');
   const [availability, setAvailability] = useState(null);
   const [recovering, setRecovering] = useState(false);
+  const [accountEmail, setAccountEmail] = useState('');
   const [signup, setSignup] = useState(true);
   const [source, setSource] = useState(null);
   const [monthly, setMonthly] = useState(null);
@@ -124,7 +125,7 @@ export default function Platform({ screen = 'accueil' }) {
     try { await action(); }
     catch (error) {
       const messages = {
-        user_already_exists: 'Connecte-toi si tu as déjà un compte, ou demande un lien de réinitialisation.',
+        user_already_exists: 'Un compte utilise déjà cette adresse. Clique sur « J’ai déjà un compte » pour te connecter.',
         over_email_send_rate_limit: 'Trop d’e-mails demandés. Attends avant de réessayer.',
         over_request_rate_limit: 'Trop de tentatives. Réessaie dans quelques instants.',
         invalid_credentials: 'Adresse e-mail ou mot de passe incorrect.',
@@ -239,14 +240,17 @@ export default function Platform({ screen = 'accueil' }) {
             <label>Image publique (facultatif)<input name="image" type="file" accept="image/jpeg,image/png,image/webp" /><small>JPEG, PNG ou WebP · 5 Mo maximum</small></label><button disabled={busy}>Publier</button>
           </form>}
           {ready && !questions.length && <p className="empty">{filter === 'all' && !query ? 'Aucune question publiée pour le moment.' : 'Aucune question avec ce filtre.'}</p>}
-          {questions.map(q => <button id={'question-' + q.id} className="problem" key={q.id} aria-pressed={selected === q.id} onClick={() => select(q.id)}><strong>{q.title}</strong><span className="question-meta">{people[q.author]?.name}<span className={solvedIds.has(q.id) ? 'state resolved' : 'state'}>{solvedIds.has(q.id) ? 'Résolu' : 'Ouvert'}</span></span></button>)}
+          {questions.map(q => <div className="problem" id={'question-' + q.id} key={q.id}>
+            <button className="link question-title" aria-pressed={selected === q.id} onClick={() => select(q.id)}>{q.title}</button>
+            <span className="question-meta"><a href={'/communaute?membre=' + q.author}>{people[q.author]?.name ?? 'Voir le profil'}</a><span className={solvedIds.has(q.id) ? 'state resolved' : 'state'}>{solvedIds.has(q.id) ? 'Résolu' : 'Ouvert'}</span></span>
+          </div>)}
           {problem && <article>
-            <h3>{problem.title}</h3><p className="body-text">{problem.body}</p>
+            <h3>{problem.title}</h3><p>Publié par <a href={'/communaute?membre=' + problem.author}>{people[problem.author]?.name ?? 'Voir le profil'}</a></p><p className="body-text">{problem.body}</p>
             <p>{[problem.technology, problem.country && countryName(problem.country)].filter(Boolean).join(' · ')}</p>{problem.code && <pre className="editor question-code"><code>{problem.code}</code></pre>}{problem.image_path && <a href={db.storage.from('question-images').getPublicUrl(problem.image_path).data.publicUrl}>
               <img className="question-attachment" src={db.storage.from('question-images').getPublicUrl(problem.image_path).data.publicUrl} alt="Image jointe au problème" loading="lazy" />
             </a>}<h3>Réponses</h3>
             {data.answers.filter(a => a.question === problem.id).map(a => <div className="answer" key={a.id}>
-              <strong>{people[a.author] && <a href={'/communaute?membre=' + a.author}>{people[a.author].name}</a>}</strong><p className="body-text">{a.body}</p>
+              <strong><a href={'/communaute?membre=' + a.author}>{people[a.author]?.name ?? 'Voir le profil'}</a></strong><p className="body-text">{a.body}</p>
               {solution?.answer === a.id ? <><span className="accepted">Solution acceptée</span>{profile && <a className="guide-link" href={'/ressources?question=' + problem.id}>Créer un guide</a>}</> : user?.id === problem.author && a.author !== user.id && <button disabled={busy} onClick={() => run(() => write(db.rpc('accept_solution', { problem_id: problem.id, response_id: a.id })))}>Accepter la solution</button>}
             </div>)}
             {profile && <form onSubmit={event => submit(event, fields => write(db.from('answers').insert({ question: problem.id, author: user.id, body: fields.get('body') })))}>
@@ -328,11 +332,16 @@ export default function Platform({ screen = 'accueil' }) {
             </> : <>
               <form onSubmit={event => submit(event, async fields => {
                 const credentials = { email: fields.get('email'), password: fields.get('password') };
-                const { error } = signup ? await db.auth.signUp({ ...credentials, options: { emailRedirectTo: location.origin + '/compte?confirmation=1' } }) : await db.auth.signInWithPassword(credentials);
+                const { data: authResult, error } = signup ? await db.auth.signUp({ ...credentials, options: { emailRedirectTo: location.origin + '/compte?confirmation=1' } }) : await db.auth.signInWithPassword(credentials);
+                if (signup && (['user_already_exists', 'email_exists'].includes(error?.code) || (!error && authResult.user?.identities?.length === 0))) {
+                  setSignup(false);
+                  accountMessage('Un compte utilise déjà cette adresse. Connecte-toi avec ton mot de passe.');
+                  return;
+                }
                 if (error) throw error;
-                accountMessage(signup ? 'Si cette adresse peut être inscrite, tu recevras un lien de confirmation. Si tu as déjà un compte, connecte-toi ou demande un lien de réinitialisation.' : 'Connexion réussie.');
+                accountMessage(signup ? 'Si cette adresse peut être inscrite, tu recevras un lien de confirmation. Si tu l’as déjà utilisée ici, clique sur « J’ai déjà un compte » pour te connecter.' : 'Connexion réussie.');
               }, accountMessage)}>
-                <label>E-mail<input name="email" type="email" required autoComplete="email" /></label>
+                <label>E-mail<input name="email" type="email" value={accountEmail} onChange={event => setAccountEmail(event.target.value)} required autoComplete="email" /></label>
                 <label>Mot de passe<input name="password" type="password" minLength={signup ? 8 : undefined} required autoComplete={signup ? 'new-password' : 'current-password'} /></label>
                 <button disabled={busy}>{signup ? 'Créer un compte' : 'Se connecter'}</button>
               </form>

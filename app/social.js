@@ -7,6 +7,10 @@ import { insertWithAttachment } from './attachments';
 import { countries, countryName } from './countries';
 import { useEffect, useState } from 'react';
 
+function splitSkills(value) {
+  return (value ?? '').split(/[,;\n]+/).map(skill => skill.trim()).filter(Boolean);
+}
+
 function searchable(value) {
   return (value ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 }
@@ -129,7 +133,7 @@ export default function Social({ db, profile, data, refresh }) {
           <div><h1>{person.name}</h1><p>{person.username && person.username !== 'dev_' + person.id.replaceAll('-', '') && <>@{person.username} · </>}{countryName(person.country)}</p></div>
         </div>
         {person.bio && <p className="body-text">{person.bio}</p>}
-        {person.skills && <div className="member-skills" aria-label="Compétences">{person.skills.split(/[,;]+/).map((skill,index) => skill.trim() && <span key={index}>{skill.trim()}</span>)}</div>}
+        {person.skills && <div className="member-skills" aria-label="Compétences">{splitSkills(person.skills).map((skill,index) => skill.trim() && <span key={index}>{skill.trim()}</span>)}</div>}
         {profile && items && profile.id !== person.id && <button disabled={busy} onClick={() => save(following.has(person.id)
           ? db.from('follows').delete().eq('follower', profile.id).eq('followed', person.id)
           : db.from('follows').insert({ follower: profile.id, followed: person.id }))}>{following.has(person.id) ? 'Se désabonner' : 'Suivre'}</button>}
@@ -164,7 +168,7 @@ export default function Social({ db, profile, data, refresh }) {
           <label>Compétence<input type="search" value={skill} onChange={event => setSkill(event.target.value)} placeholder="Ex. JavaScript" /></label>
         </div>
         <p role="status">{directory ? members.length ? members.length + ' profil(s)' : 'Aucun profil ne correspond à ta recherche.' : 'Chargement de l’annuaire…'}</p>
-        <ul className="member-list">{members.map(p => <li key={p.id}><a href={'/communaute?membre=' + p.id}><ProfileAvatar db={db} member={p} /><span><strong>{p.name}</strong><small>{p.username && p.username !== 'dev_' + p.id.replaceAll('-', '') && <>@{p.username} · </>}{countryName(p.country)}</small>{p.skills && <small>{p.skills}</small>}</span></a></li>)}</ul>
+        <ul className="member-list">{members.map(p => <li key={p.id}><a href={'/communaute?membre=' + p.id}><ProfileAvatar db={db} member={p} /><span className="member-card-text"><strong title={p.name}>{p.name}</strong><small>{p.username && p.username !== 'dev_' + p.id.replaceAll('-', '') && <>@{p.username} · </>}{countryName(p.country)}</small><small className="member-card-skills">{splitSkills(p.skills).slice(0, 2).join(' · ')}</small></span></a></li>)}</ul>
         {profile && <div className="filters">
           <button aria-pressed={!feed} onClick={() => setFeed(false)}>Tout</button>
           <button aria-pressed={feed} onClick={() => setFeed(true)}>Abonnements</button>

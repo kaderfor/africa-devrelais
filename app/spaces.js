@@ -97,9 +97,9 @@ export default function Spaces({ db, profile, people, draft, screen }) {
       {!loading && !rows[table].length && <p className="empty">Aucune publication pour le moment.</p>}
       {rows[table].filter(item => table !== 'projects' || (item.skills || '').toLowerCase().includes(skill.trim().toLowerCase())).map(item => <article id={id === 'projets' ? 'projet-' + item.id : 'guide-' + item.id} key={item.id}>
         <h3>{item.title}</h3>
-        <p className="empty">{people[item.author]?.name}</p>
+        <p className="empty"><a href={'/communaute?membre=' + item.author}>{people[item.author]?.name ?? 'Voir le profil'}</a></p>
         <p className="body-text">{item.body}</p>{item.pdf_path && <p><a href={db.storage.from('guide-pdfs').getPublicUrl(item.pdf_path, { download: 'ressource.pdf' }).data.publicUrl}>Télécharger le PDF</a></p>}
-        {item.source_question && <p><a href={'/entraide?question=' + item.source_question}>Discussion d’origine</a>{item.credited_author && <> · Solution de {people[item.credited_author]?.name}</>}</p>}
+        {item.source_question && <p><a href={'/entraide?question=' + item.source_question}>Discussion d’origine</a>{item.credited_author && <> · Solution de <a href={'/communaute?membre=' + item.credited_author}>{people[item.credited_author]?.name ?? 'Voir le profil'}</a></>}</p>}
         {table === 'projects' && <>
           {item.group_id && <p><a href={'/groupes?groupe=' + item.group_id}>Ouvrir le groupe du projet</a></p>}
           {item.github && <PullRequests repository={item.github} />}
@@ -130,7 +130,7 @@ export default function Spaces({ db, profile, people, draft, screen }) {
               <button disabled={busy}>Proposer ma candidature</button>
             </form>)}
           {profile?.id === item.author && rows.applications.filter(row => row.project === item.id).map(row => <div className="answer" key={row.author}>
-            <strong>{people[row.author]?.name}</strong><p className="body-text">{row.body}</p>
+            <strong><a href={'/communaute?membre=' + row.author}>{people[row.author]?.name ?? 'Voir le profil'}</a></strong><p className="body-text">{row.body}</p>
             {row.accepted ? <><span className="accepted">Acceptée</span> <button type="button" disabled={busy} onClick={() => openGroup(item.id, row.author)}>{item.group_id ? 'Ouvrir le groupe et inviter' : 'Créer le groupe et inviter'}</button> {tasks && <a href={'#taches-' + item.id} onClick={() => setTaskProject(item.id)}>Attribuer une tâche</a>}</> : <button disabled={busy} onClick={() => save(db.from('applications').update({ accepted: true }).eq('project', item.id).eq('author', row.author))}>Accepter la candidature</button>}
           </div>)}
         </>}

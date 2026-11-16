@@ -156,7 +156,10 @@ body { background: #fafaff; }
 .member-skills span { padding:4px 10px; background:#eeebff; color:#463ba4; border-radius:99px; font-size:14px; }
 .member-list { list-style:none; padding:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; }
 .member-list li { margin:0; }
-.member-list a { display:flex; align-items:center; gap:10px; text-decoration:none; border:1px solid var(--line); border-radius:12px; padding:10px; }
+.member-list a { display:flex; align-items:center; gap:10px; text-decoration:none; border:1px solid var(--line); border-radius:12px; padding:10px; height:96px; }
+.member-card-text { min-width:0; flex:1; }
+.member-card-text strong, .member-card-text small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.member-card-skills { min-height:1.55em; }
 .member-list a:hover { border-color:var(--green); }
 .member-list small { display:block; }
 .member-details { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
@@ -209,3 +212,4 @@ body { background: #fafaff; }
 .publication-confirmation form { display: flex; justify-content: end; margin: 16px 0 0; }
 .directory-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; }
 .member-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; } .account-presentation { margin-block: 18px; }
+.question-title { text-align: left; padding: 0; overflow-wrap: anywhere; } .question-title[aria-pressed="true"] { text-decoration: underline; }

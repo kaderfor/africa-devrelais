@@ -165,10 +165,10 @@ export default function Workspace({ db, profile, people, screen }) {
           {(owner || joined) && <form onSubmit={event => submit(event, values => db.from('group_posts').insert({ group_id: group.id, author: profile.id, body: values.get('body').trim(), guide: values.get('guide') || null }))}>
             <label>Publier dans le groupe<textarea name="body" required maxLength={2000} /></label><label>Guide partagé<select name="guide"><option value="">Aucun</option>{rows.guides?.map(guide => <option value={guide.id} key={guide.id}>{guide.title}</option>)}</select></label><button disabled={busy}>Publier</button>
           </form>}
-          {rows.group_posts.filter(post => post.group_id === group.id && !post.parent).map(post => <div className="answer" key={post.id}><strong>{people[post.author]?.name}</strong><p className="body-text">{post.body}</p>
+          {rows.group_posts.filter(post => post.group_id === group.id && !post.parent).map(post => <div className="answer" key={post.id}><strong><a href={'/communaute?membre=' + post.author}>{people[post.author]?.name ?? 'Voir le profil'}</a></strong><p className="body-text">{post.body}</p>
             {post.guide && <a href={'/ressources#guide-' + post.guide}>Voir le guide partagé</a>}
             {rows.group_posts.filter(reply => reply.parent === post.id).map(reply => <div className="group-reply" key={reply.id}>
-              <strong>{people[reply.author]?.name}</strong><p className="body-text">{reply.body}</p>
+              <strong><a href={'/communaute?membre=' + reply.author}>{people[reply.author]?.name ?? 'Voir le profil'}</a></strong><p className="body-text">{reply.body}</p>
               {(owner || profile?.id === reply.author) && <button disabled={busy} onClick={() => save(db.from('group_posts').delete().eq('id', reply.id))}>Retirer la réponse</button>}
             </div>)}
             {(joined || owner) && <details><summary>Répondre</summary><form onSubmit={event => submit(event, values => db.from('group_posts').insert({ group_id: group.id, parent: post.id, author: profile.id, body: values.get('body').trim() }))}><label>Réponse<textarea name="body" required maxLength={2000} /></label><button disabled={busy}>Envoyer</button></form></details>}
