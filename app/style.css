@@ -150,7 +150,7 @@ body { background: #fafaff; }
 .member-banner { display: flex; align-items: center; gap: 18px; padding: clamp(16px,4vw,36px); border-radius: 14px; background: linear-gradient(120deg,#eeeaff,#f2f7ff); }
 .member-banner h1 { margin: 0; font-size: clamp(24px,4.5vw,42px); letter-spacing: -.045em; line-height: 1.12; }
 .member-banner p { margin: 6px 0 0; color: var(--muted); }
-.member-avatar { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 auto; border-radius: 12px; font-weight: 750; background: #e8e3ff; color: #463ba4; }
+.member-avatar { position: relative; overflow: hidden; display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 auto; border-radius: 12px; font-weight: 750; background: #e8e3ff; color: #463ba4; }
 .member-banner .member-avatar { width: clamp(46px,8vw,76px); height: clamp(46px,8vw,76px); font-size: clamp(15px,3vw,26px); }
 .member-skills { display:flex; flex-wrap:wrap; gap:8px; margin-block:14px; }
 .member-skills span { padding:4px 10px; background:#eeebff; color:#463ba4; border-radius:99px; font-size:14px; }
@@ -211,7 +211,7 @@ body { background: #fafaff; }
 .publication-confirmation::backdrop { background: #161a3260; }
 .publication-confirmation form { display: flex; justify-content: end; margin: 16px 0 0; }
 .directory-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; }
-.member-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; } .account-presentation { margin-block: 18px; }
+.member-avatar img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; } .account-presentation { margin-block: 18px; }
 .question-title { text-align: left; padding: 0; overflow-wrap: anywhere; } .question-title[aria-pressed="true"] { text-decoration: underline; }
 .notification-bell { position: relative; display: inline-grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; text-decoration: none; }
 .notification-count { position: absolute; top: -3px; right: -4px; min-width: 18px; padding: 0 4px; border-radius: 99px; background: #a4224f; color: #fff; text-align: center; font-size: 11px; line-height: 18px; }
